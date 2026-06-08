@@ -2,7 +2,7 @@ import torch.nn as nn
 from transformers import AutoModel
 
 class EstimateRuBERT(nn.Module):
-    def __init__(self, model_name='cointegrated/rubert-tiny2', num_risk_classes=4):
+    def __init__(self, model_name='cointegrated/rubert-tiny2'):
         super().__init__()
         self.bert = AutoModel.from_pretrained(model_name)
 
