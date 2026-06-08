@@ -24,6 +24,29 @@ def prepare_data():
 
     print(f'Rows left after filtering: {len(df)}')
 
+    ratio = df['logged_days'] / df['estimate']
+
+    ratio_conditions = [
+        (ratio <= 1.0),
+        (ratio > 1.0) & (ratio <= 1.25),
+        (ratio > 1.25) & (ratio <= 1.5),
+        (ratio > 1.5)
+    ]
+
+    ratio_labels = [0, 1, 2, 3]
+
+    df['risk_level'] = np.select(ratio_conditions, ratio_labels, default=0)
+
+    prepared_df = df[['text', 'estimate', 'risk_level']]
+
+    output_filename = 'dataset.csv'
+    print(f'Writing to {output_filename}')
+    prepared_df.to_csv(output_filename, index=False)
+    print(f'Saved to {output_filename}')
+
+    print(f'Risk class distribution is:')
+    print(prepared_df['risk_level'].value_counts())
+
 
 if __name__ == '__main__':
     prepare_data()
