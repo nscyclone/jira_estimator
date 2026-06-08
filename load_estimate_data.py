@@ -24,11 +24,9 @@ class JiraDataset(Dataset):
         )
 
         estimate = torch.tensor(row['estimate'], dtype=torch.float32)
-        risk_level = torch.tensor(row['risk_level'], dtype=torch.long)
 
         return {
             'input_ids': encoding['input_ids'].flatten(),
             'attention_mask': encoding['attention_mask'].flatten(),
-            'estimate': estimate,
-            'risk_level': risk_level
+            'estimate': estimate
         }
