@@ -14,6 +14,7 @@ CONFIG = {
     'dataset_path': 'data/dataset.csv',
     'train_path': 'data/train.csv',
     'val_path': 'data/val.csv',
+    'test_path': 'data/test.csv',
 
     # Model output
     'model_save_path': 'models/multitask_rubert.pt'

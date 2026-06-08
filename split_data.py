@@ -15,10 +15,18 @@ def split_data():
         random_state=42
     )
 
-    train_df_filename, val_df_filename = 'data/train.csv','data/val.csv'
+    test_df, val_df = train_test_split(
+        val_df,
+        test_size=0.5,
+        stratify=val_df['risk_level'],
+        random_state=42
+    )
+
+    train_df_filename, val_df_filename, test_df_filename = CONFIG['train_path'], CONFIG['val_path'], CONFIG['test_path']
     train_df.to_csv(train_df_filename, index=False)
     val_df.to_csv(val_df_filename, index=False)
-    print(f'Saved the training ({len(train_df)} rows) and validation ({len(val_df)} rows) datasets to {train_df_filename} and {val_df_filename}')
+    test_df.to_csv(test_df_filename, index=False)
+    print(f'Saved the training ({len(train_df)} rows), validation ({len(val_df)} rows) and test ({len(test_df)} rows) datasets to {train_df_filename}, {val_df_filename} and {test_df_filename}')
 
 
 if __name__ == '__main__':
