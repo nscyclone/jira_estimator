@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
+from config import CONFIG
 
 SEC_TO_WORKDAY = 28800 # 8 * 60 * 60
 
 def prepare_data():
-    filename = 'data/seed.csv'
+    filename = CONFIG['seed_path']
     print(f'Reading data from {filename}')
     df = pd.read_csv(filename, sep=',', on_bad_lines='skip')
     print(f'Imported {len(df)} rows')
@@ -39,7 +40,7 @@ def prepare_data():
 
     prepared_df = df[['text', 'estimate', 'risk_level']]
 
-    output_filename = 'data/dataset.csv'
+    output_filename = CONFIG['dataset_path']
     print(f'Writing to {output_filename}')
     prepared_df.to_csv(output_filename, index=False)
     print(f'Saved to {output_filename}')

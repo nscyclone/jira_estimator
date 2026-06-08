@@ -1,8 +1,9 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from config import CONFIG
 
 def split_data():
-    filename = 'data/dataset.csv'
+    filename = CONFIG['dataset_path']
     print(f'Reading data from {filename}')
     df = pd.read_csv(filename)
     print(f'Imported {len(df)} rows')
