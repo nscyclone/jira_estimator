@@ -4,7 +4,7 @@ import numpy as np
 SEC_TO_WORKDAY = 28800 # 8 * 60 * 60
 
 def prepare_data():
-    filename = 'seed.csv'
+    filename = 'data/seed.csv'
     print(f'Reading data from {filename}')
     df = pd.read_csv(filename, sep=',', on_bad_lines='skip')
     print(f'Imported {len(df)} rows')
@@ -39,7 +39,7 @@ def prepare_data():
 
     prepared_df = df[['text', 'estimate', 'risk_level']]
 
-    output_filename = 'dataset.csv'
+    output_filename = 'data/dataset.csv'
     print(f'Writing to {output_filename}')
     prepared_df.to_csv(output_filename, index=False)
     print(f'Saved to {output_filename}')
