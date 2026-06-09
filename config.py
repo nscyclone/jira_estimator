@@ -17,5 +17,6 @@ CONFIG = {
     'test_path': 'data/test.csv',
 
     # Model output
-    'model_save_path': 'models/multitask_rubert.pt'
+    'model_save_path': 'models/multitask_rubert.pt',
+    'embeddings_save_path': 'embeddings'
 }
