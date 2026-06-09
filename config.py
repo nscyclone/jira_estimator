@@ -1,11 +1,11 @@
 CONFIG = {
     # Model & tokenizer
-    'model_name': 'cointegrated/rubert-tiny2',
-    'max_length': 512,
+    'model_name': 'sergeyzh/BERTA',
+    'max_length': 256,
     'num_risk_classes': 4,
 
     # Hyperparams
-    'batch_size': 64,
+    'batch_size': 32,
     'lr': 1e-5,
     'epochs': 20,
 

@@ -15,7 +15,8 @@ class RiskRuBERT(nn.Module):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
 
         # Get embedding of [CLS]-token
-        cls_output = outputs.last_hidden_state[:, 0, :]
+        hidden_states = outputs[0]
+        cls_output = hidden_states[:, 0, :]
 
         logits_risk = self.classification_head(cls_output)
 

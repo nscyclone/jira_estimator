@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
@@ -23,7 +24,7 @@ class JiraDataset(Dataset):
             return_tensors='pt'
         )
 
-        estimate = torch.tensor(row['estimate'], dtype=torch.float32)
+        estimate = torch.tensor(np.log1p(row['estimate']), dtype=torch.float32)
 
         return {
             'input_ids': encoding['input_ids'].flatten(),
