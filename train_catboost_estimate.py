@@ -27,10 +27,11 @@ def train(X_train, y_train, X_val, y_val):
     print("CatBoost training")
 
     model = CatBoostRegressor(
-        iterations=1000,
+        iterations=1500,
         learning_rate=0.03,
         depth=6,
-        eval_metric='RMSE',
+        loss_function='MAE',
+        eval_metric='MAE',
         random_seed=42,
         task_type="CPU"
     )
@@ -38,7 +39,7 @@ def train(X_train, y_train, X_val, y_val):
     model.fit(
         X_train, y_train,
         eval_set=(X_val, y_val),
-        early_stopping_rounds=50,
+        early_stopping_rounds=70,
         logging_level='Verbose'
     )
     return model
