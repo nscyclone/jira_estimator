@@ -28,7 +28,8 @@ def train(X_train, y_train, X_val, y_val):
         learning_rate=0.05,
         depth=6,
         loss_function='MultiClass',
-        eval_metric='MultiClass',
+        eval_metric='TotalF1:average=Macro',
+        auto_class_weights='Balanced',
         random_seed=42,
         task_type="CPU"
     )
