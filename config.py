@@ -19,5 +19,6 @@ CONFIG = {
     # Model output
     'model_save_path': 'models/multitask_rubert.pt',
     'embeddings_save_path': 'embeddings',
-    'catboost_estimate_model_save_path': 'models/catboost_estimate_model.cbm'
+    'catboost_estimate_model_save_path': 'models/catboost_estimate_model.cbm',
+    'catboost_risk_model_save_path': 'models/catboost_risk_model.cbm'
 }
