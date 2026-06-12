@@ -15,6 +15,10 @@ def load_risk_data():
     X_test = np.load(f"{CONFIG['embeddings_save_path']}/test_X.npy")
     y_test = np.load(f"{CONFIG['embeddings_save_path']}/test_y_risk.npy").astype(int)
 
+    y_train = np.where(y_train > 0, 1, 0)
+    y_val = np.where(y_val > 0, 1, 0)
+    y_test = np.where(y_test > 0, 1, 0)
+
     print(f"Loaded features matrix. Train: {X_train.shape}, Val: {X_val.shape}, Test: {X_test.shape}")
     return X_train, y_train, X_val, y_val, X_test, y_test
 
@@ -26,9 +30,9 @@ def train(X_train, y_train, X_val, y_val):
     model = CatBoostClassifier(
         iterations=iterations,
         learning_rate=0.05,
-        depth=6,
-        loss_function='MultiClass',
-        eval_metric='TotalF1:average=Macro',
+        depth=5,
+        loss_function='Logloss',
+        eval_metric='F1',
         auto_class_weights='Balanced',
         random_seed=42,
         task_type="CPU"
@@ -57,7 +61,7 @@ def evaluate(model, X_test, y_test):
     print(classification_report(
         y_test,
         y_pred,
-        target_names=['Low (0)', 'Average (1)', 'High (2)', 'Critical (3)']
+        target_names=['No Risk (0)', 'Has Risk (1)']
     ))
 
 
