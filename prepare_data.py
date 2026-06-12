@@ -20,8 +20,9 @@ def prepare_data():
     # Dropping rows having neither estimates nor worklogs
     df = df.dropna(subset=['logged_days', 'estimate'])
 
-    # Dropping rows with an implicit zero estimate
+    # Dropping rows with an implicit zero estimate and estimates higher than 10 FTE
     df = df[df['estimate'] > 0]
+    df = df[df['estimate'] <= 10.0]
 
     print(f'Rows left after filtering: {len(df)}')
 
