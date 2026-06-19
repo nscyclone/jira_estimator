@@ -7,17 +7,23 @@ from config import CONFIG
 
 def load_data():
     print(f"Loading embeddings from {CONFIG['embeddings_save_path']}")
-    X_train = np.load(f"{CONFIG['embeddings_save_path']}/train_X.npy")
+    X_train_raw = np.load(f"{CONFIG['embeddings_save_path']}/train_X.npy")
     y_train_raw = np.load(f"{CONFIG['embeddings_save_path']}/train_y_est.npy")
 
     X_val = np.load(f"{CONFIG['embeddings_save_path']}/val_X.npy")
-    y_val_raw = np.load(f"{CONFIG['embeddings_save_path']}/val_y_est.npy")
+    y_val = np.load(f"{CONFIG['embeddings_save_path']}/val_y_est.npy")
 
     X_test = np.load(f"{CONFIG['embeddings_save_path']}/test_X.npy")
     y_test_raw = np.load(f"{CONFIG['embeddings_save_path']}/test_y_est.npy")
 
-    y_train = np.log1p(y_train_raw)
-    y_val = np.log1p(y_val_raw)
+    lower_bound, upper_bound = np.percentile(y_train_raw, 1), np.percentile(y_train_raw, 99)
+    print(f"Filtering train: keeping estimates between {lower_bound:.3f} and {upper_bound:.3f} FTE")
+
+    train_mask = (y_train_raw >= lower_bound) & (y_train_raw <= upper_bound)
+
+    X_train = X_train_raw[train_mask]
+    y_train = y_train_raw[train_mask]
+    print(f"Dropped {len(y_train_raw) - len(y_train)} outliers from train")
 
     print(f"Loaded features matrix. Train: {X_train.shape}, Val: {X_val.shape}, Test: {X_test.shape}")
     return X_train, y_train, X_val, y_val, X_test, y_test_raw
@@ -27,9 +33,9 @@ def train(X_train, y_train, X_val, y_val):
     print("CatBoost training")
 
     model = CatBoostRegressor(
-        iterations=1500,
+        iterations=3000,
         learning_rate=0.03,
-        depth=6,
+        depth=9,
         loss_function='MAE',
         eval_metric='MAE',
         random_seed=42,
@@ -48,9 +54,7 @@ def train(X_train, y_train, X_val, y_val):
 def evaluate(model, X_test, y_test_raw):
     print(f"Evaluating model on test data")
 
-    preds_log = model.predict(X_test)
-
-    y_pred = np.expm1(preds_log)
+    y_pred = model.predict(X_test)
     y_pred = np.clip(y_pred, a_min=0.0, a_max=None)
 
     y_true = y_test_raw
