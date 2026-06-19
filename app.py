@@ -67,15 +67,20 @@ def predict(task: JiraTask):
         embedding = get_embedding(full_text).reshape(1, -1)
 
         pred_log = ml_models["est_model"].predict(embedding)[0]
-        estimate_fte = max(float(np.expm1(pred_log)), 0.0)
+        base_estimate = float(np.expm1(pred_log))
 
-        risk_class = int(ml_models["risk_model"].predict(embedding)[0])
-        risk_label = "Has Risk" if risk_class == 1 else "No Risk"
+        risk_probs = ml_models["risk_model"].predict_proba(embedding)[0]
+        prob_has_risk = risk_probs[1]
+
+        # "Has Risk" means that time_spent >= 1.25 * estimate
+        # When risk is predicted the estimate can be adjusted by a static coefficient
+        risk_buffer_multiplier = 1.0 + (0.30 * prob_has_risk)
+        adjusted_estimate = base_estimate * risk_buffer_multiplier
 
         return {
-            "estimate_fte": round(estimate_fte, 3),
-            "estimate_hours": round(estimate_fte * 8, 1),
-            "risk_level": risk_label
+            "base_estimate_hours": round(base_estimate * 8, 1),
+            "adjusted_estimate_hours": round(adjusted_estimate * 8, 1),
+            "risk_probability_pct": round(prob_has_risk * 100, 1)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
