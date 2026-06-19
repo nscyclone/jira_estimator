@@ -66,12 +66,14 @@ def evaluate(model, X_test, y_test_raw):
 
     errors = y_pred - y_true
     abs_errors = np.abs(errors)
+    errors_95_pct = np.percentile(abs_errors, 95)
 
     print("CatBoost regression evalution results:")
     print(f"  MAE:{mae:.3f} FTE")
     print(f"  RMSE: {rmse:.3f} FTE")
     print(f"  R² Score: {r2:.4f}")
     print(f"  Median errors: {np.median(abs_errors):.3f} FTE")
+    print(f"  95% of errors are below: {errors_95_pct:.3f} FTE")
     print(f"  Max errors: {np.max(abs_errors):.3f} FTE")
 
     print("\nAccuracy:")
