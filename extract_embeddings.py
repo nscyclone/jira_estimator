@@ -53,9 +53,13 @@ def extract_embeddings(csv_path, output_prefix):
     print(f"Saved embeddings matrix shape: {X.shape}")
 
 
-if __name__ == '__main__':
+def main():
     os.makedirs(CONFIG['embeddings_save_path'], exist_ok=True)
     extract_embeddings(CONFIG['train_path'], 'train')
     extract_embeddings(CONFIG['val_path'], 'val')
     extract_embeddings(CONFIG['test_path'], 'test')
     print("Done.")
+
+
+if __name__ == '__main__':
+    main()
