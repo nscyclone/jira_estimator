@@ -44,7 +44,7 @@ def extract_embeddings(csv_path, output_prefix):
     X = np.vstack(embeddings_list)
 
     # Targets
-    y_estimate = df['estimate'].values
+    y_estimate = df['logged_days'].values
     y_risk = df['risk_level'].values
 
     np.save(f"{CONFIG['embeddings_save_path']}/{output_prefix}_X.npy", X)

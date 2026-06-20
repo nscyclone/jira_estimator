@@ -61,7 +61,7 @@ def prepare_data():
 
     df['risk_level'] = np.select(ratio_conditions, ratio_labels, default=0)
 
-    prepared_df = df[['text', 'estimate', 'time_spent', 'risk_level', 'region', 'subsystem', 'commitments']]
+    prepared_df = df[['text', 'estimate', 'logged_days', 'risk_level', 'region', 'subsystem', 'commitments']]
 
     output_filename = CONFIG['dataset_path']
     print(f'Writing to {output_filename}')
