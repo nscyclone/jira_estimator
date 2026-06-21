@@ -48,8 +48,8 @@ def train(X_train, y_train, X_val, y_val):
     cat_features_indices = [775, 776, 777]
 
     model = CatBoostClassifier(
-        iterations=2000,
-        learning_rate=0.03,
+        iterations=6000,
+        learning_rate=0.02,
         depth=6,
         loss_function='MultiClass',
         eval_metric='MultiClass',

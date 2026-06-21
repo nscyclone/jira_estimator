@@ -63,8 +63,8 @@ def train(X_train, y_train, X_val, y_val):
     cat_features_indices = [775, 776, 777]
 
     model = CatBoostRegressor(
-        iterations=5000,
-        learning_rate=0.02,
+        iterations=12000,
+        learning_rate=0.015,
         depth=8,
         loss_function='RMSE',
         l2_leaf_reg=6.0,
