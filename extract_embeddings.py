@@ -15,7 +15,7 @@ def extract_embeddings(csv_path, output_prefix):
     model = AutoModel.from_pretrained(CONFIG['model_name']).to(device)
     model.eval()
 
-    print(f"Reading a dataset from {CONFIG['train_path']}")
+    print(f"Reading a dataset from {csv_path}")
     df = pd.read_csv(csv_path)
     embeddings_list = []
 

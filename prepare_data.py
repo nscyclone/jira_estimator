@@ -52,12 +52,11 @@ def prepare_data():
 
     ratio_conditions = [
         (ratio <= 1.0),
-        (ratio > 1.0) & (ratio <= 1.25),
-        (ratio > 1.25) & (ratio <= 1.5),
+        (ratio > 1.0) & (ratio <= 1.5),
         (ratio > 1.5)
     ]
 
-    ratio_labels = [0, 1, 2, 3]
+    ratio_labels = [0, 1, 2]
 
     df['risk_level'] = np.select(ratio_conditions, ratio_labels, default=0)
 
