@@ -16,6 +16,31 @@ def prepare_data():
 
     df['text'] = df['summary'] + ' ' + df['description']
 
+    df['summary'] = df['summary'].fillna('')
+    df['description'] = df['description'].fillna('')
+
+    df['text'] = df['summary'] + ' ' + df['description']
+
+    # Binary features: whether description and code blocks are present
+    df['has_description'] = (df['description'].str.strip() != '').astype(int)
+    df['has_code_block'] = df['description'].str.contains('{code', case=False, regex=False).astype(int)
+
+    # Featuring SDLC stages
+    text_lower = df['text'].str.lower()
+
+    dev_words = ['разраб', 'dev', 'implement', 'feature', 'фич', 'кодиров']
+    df['is_dev_task'] = text_lower.apply(lambda x: int(any(w in x for w in dev_words)))
+
+    test_words = ['тест', 'test', 'qa', 'проверк', 'autotest', 'автотест']
+    df['is_test_task'] = text_lower.apply(lambda x: int(any(w in x for w in test_words)))
+
+    analysis_words = ['анализ', 'anali', 'тз', 'требован', 'проектир', 'requirement']
+    df['is_analysis_task'] = text_lower.apply(lambda x: int(any(w in x for w in analysis_words)))
+
+    # Content length metrics
+    df['text_len'] = df['text'].str.len()
+    df['word_count'] = df['text'].apply(lambda x: len(x.split()))
+
     df['logged_days'] = df['time_spent'] / SEC_TO_WORKDAY
 
     df['region'] = df['region'].apply(
@@ -60,7 +85,9 @@ def prepare_data():
 
     df['risk_level'] = np.select(ratio_conditions, ratio_labels, default=0)
 
-    prepared_df = df[['text', 'estimate', 'logged_days', 'risk_level', 'region', 'subsystem', 'commitments']]
+    prepared_df = df[['text', 'estimate', 'logged_days', 'risk_level', 'region', 'subsystem', 'commitments',
+        'has_description', 'has_code_block', 'is_dev_task', 'is_test_task', 'is_analysis_task',
+        'text_len', 'word_count']]
 
     output_filename = CONFIG['dataset_path']
     print(f'Writing to {output_filename}')
