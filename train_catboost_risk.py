@@ -20,14 +20,23 @@ def load_risk_data():
     val_df = pd.read_csv(CONFIG['val_path'], keep_default_na=False)
     test_df = pd.read_csv(CONFIG['test_path'], keep_default_na=False)
 
+    num_cols = [
+        'has_description', 'has_code_block',
+        'is_dev_task', 'is_test_task', 'is_analysis_task',
+        'text_len', 'word_count'
+    ]
+    num_train = train_df[num_cols].to_numpy()
+    num_val = val_df[num_cols].to_numpy()
+    num_test = test_df[num_cols].to_numpy()
+
     cat_cols = ['region', 'subsystem', 'commitments']
     cat_train = train_df[cat_cols].astype(str).to_numpy()
     cat_val = val_df[cat_cols].astype(str).to_numpy()
     cat_test = test_df[cat_cols].astype(str).to_numpy()
 
-    X_train = np.hstack([X_train_emb, cat_train]).astype(object)
-    X_val = np.hstack([X_val_emb, cat_val]).astype(object)
-    X_test = np.hstack([X_test_emb, cat_test]).astype(object)
+    X_train = np.hstack([X_train_emb, num_train, cat_train]).astype(object)
+    X_val = np.hstack([X_val_emb, num_val, cat_val]).astype(object)
+    X_test = np.hstack([X_test_emb, num_test, cat_test]).astype(object)
 
     print(f"Loaded features matrix. Train: {X_train.shape}, Val: {X_val.shape}, Test: {X_test.shape}")
     return X_train, y_train, X_val, y_val, X_test, y_test
@@ -36,7 +45,7 @@ def load_risk_data():
 def train(X_train, y_train, X_val, y_val):
     print("CatBoost training")
 
-    cat_features_indices = [768, 769, 770]
+    cat_features_indices = [775, 776, 777]
 
     model = CatBoostClassifier(
         iterations=2000,

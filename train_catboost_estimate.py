@@ -21,17 +21,25 @@ def load_data():
     val_df = pd.read_csv(CONFIG['val_path'], keep_default_na=False)
     test_df = pd.read_csv(CONFIG['test_path'], keep_default_na=False)
 
+    num_cols = [
+        'has_description', 'has_code_block',
+        'is_dev_task', 'is_test_task', 'is_analysis_task',
+        'text_len', 'word_count'
+    ]
+    num_train = train_df[num_cols].to_numpy()
+    num_val = val_df[num_cols].to_numpy()
+    num_test = test_df[num_cols].to_numpy()
+
     # Extract ['region', 'subsystem', 'commitments']
     cat_cols = ['region', 'subsystem', 'commitments']
     cat_train = train_df[cat_cols].astype(str).to_numpy()
     cat_val = val_df[cat_cols].astype(str).to_numpy()
     cat_test = test_df[cat_cols].astype(str).to_numpy()
 
-
     # Glue embedding with ['region', 'subsystem', 'commitments']
-    X_train_raw = np.hstack([X_train_emb, cat_train]).astype(object)
-    X_val = np.hstack([X_val_emb, cat_val]).astype(object)
-    X_test = np.hstack([X_test_emb, cat_test]).astype(object)
+    X_train_raw = np.hstack([X_train_emb, num_train, cat_train]).astype(object)
+    X_val = np.hstack([X_val_emb, num_val, cat_val]).astype(object)
+    X_test = np.hstack([X_test_emb, num_test, cat_test]).astype(object)
 
     lower_bound, upper_bound = np.percentile(y_train_raw, 1), np.percentile(y_train_raw, 99)
     print(f"Filtering train: keeping logged days between {lower_bound:.3f} and {upper_bound:.3f} FTE")
@@ -39,25 +47,28 @@ def load_data():
     train_mask = (y_train_raw >= lower_bound) & (y_train_raw <= upper_bound)
 
     X_train = X_train_raw[train_mask]
-    y_train = y_train_raw[train_mask]
-    print(f"Dropped {len(y_train_raw) - len(y_train)} outliers from train")
+    y_train_raw_filtered = y_train_raw[train_mask]
+    print(f"Dropped {len(y_train_raw) - len(y_train_raw_filtered)} outliers from train")
+
+    y_train = np.log1p(y_train_raw_filtered)
+    y_val_log = np.log1p(y_val)
 
     print(f"Loaded features matrix. Train: {X_train.shape}, Val: {X_val.shape}, Test: {X_test.shape}")
-    return X_train, y_train, X_val, y_val, X_test, y_test_raw
+    return X_train, y_train, X_val, y_val_log, X_test, y_test_raw
 
 
 def train(X_train, y_train, X_val, y_val):
     print("CatBoost training")
 
-    cat_features_indices = [768, 769, 770]
+    cat_features_indices = [775, 776, 777]
 
     model = CatBoostRegressor(
         iterations=5000,
         learning_rate=0.02,
         depth=8,
-        loss_function='Huber:delta=0.5',
+        loss_function='RMSE',
         l2_leaf_reg=6.0,
-        eval_metric='MAE',
+        eval_metric='RMSE',
         random_seed=42,
         task_type="CPU",
         cat_features=cat_features_indices
@@ -75,7 +86,8 @@ def train(X_train, y_train, X_val, y_val):
 def evaluate(model, X_test, y_test_raw):
     print(f"Evaluating model on test data (Target: Actual Logged Days)")
 
-    y_pred = model.predict(X_test)
+    y_pred_log = model.predict(X_test)
+    y_pred = np.expm1(y_pred_log)
     y_pred = np.clip(y_pred, a_min=0.0, a_max=None)
 
     y_true = y_test_raw
