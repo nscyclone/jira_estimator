@@ -1,7 +1,8 @@
 import os
 import pandas as pd
 import numpy as np
-from catboost import CatBoostRegressor
+from catboost import CatBoostRegressor, Pool
+from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from config import CONFIG
 
@@ -12,7 +13,7 @@ def load_data():
     y_train_raw = np.load(f"{CONFIG['embeddings_save_path']}/train_y_est.npy")
 
     X_val_emb = np.load(f"{CONFIG['embeddings_save_path']}/val_X.npy")
-    y_val = np.load(f"{CONFIG['embeddings_save_path']}/val_y_est.npy")
+    y_val_raw = np.load(f"{CONFIG['embeddings_save_path']}/val_y_est.npy")
 
     X_test_emb = np.load(f"{CONFIG['embeddings_save_path']}/test_X.npy")
     y_test_raw = np.load(f"{CONFIG['embeddings_save_path']}/test_y_est.npy")
@@ -26,68 +27,132 @@ def load_data():
         'is_dev_task', 'is_test_task', 'is_analysis_task',
         'text_len', 'word_count'
     ]
-    num_train = train_df[num_cols].to_numpy()
-    num_val = val_df[num_cols].to_numpy()
-    num_test = test_df[num_cols].to_numpy()
-
-    # Extract ['region', 'subsystem', 'commitments']
     cat_cols = ['region', 'subsystem', 'commitments']
-    cat_train = train_df[cat_cols].astype(str).to_numpy()
-    cat_val = val_df[cat_cols].astype(str).to_numpy()
-    cat_test = test_df[cat_cols].astype(str).to_numpy()
+    emb_cols = [f'emb_{i}' for i in range(768)]
 
-    # Glue embedding with ['region', 'subsystem', 'commitments']
-    X_train_raw = np.hstack([X_train_emb, num_train, cat_train]).astype(object)
-    X_val = np.hstack([X_val_emb, num_val, cat_val]).astype(object)
-    X_test = np.hstack([X_test_emb, num_test, cat_test]).astype(object)
+    df_train_part = pd.DataFrame(X_train_emb, columns=emb_cols)
+    for col in num_cols:
+        df_train_part[col] = train_df[col].astype(np.float32)
+    for col in cat_cols:
+        df_train_part[col] = train_df[col].astype(str)
 
-    lower_bound, upper_bound = np.percentile(y_train_raw, 1), np.percentile(y_train_raw, 99)
-    print(f"Filtering train: keeping logged days between {lower_bound:.3f} and {upper_bound:.3f} FTE")
+    df_val_part = pd.DataFrame(X_val_emb, columns=emb_cols)
+    for col in num_cols:
+        df_val_part[col] = val_df[col].astype(np.float32)
+    for col in cat_cols:
+        df_val_part[col] = val_df[col].astype(str)
 
-    train_mask = (y_train_raw >= lower_bound) & (y_train_raw <= upper_bound)
+    df_test = pd.DataFrame(X_test_emb, columns=emb_cols)
+    for col in num_cols:
+        df_test[col] = test_df[col].astype(np.float32)
+    for col in cat_cols:
+        df_test[col] = test_df[col].astype(str)
 
-    X_train = X_train_raw[train_mask]
-    y_train_raw_filtered = y_train_raw[train_mask]
-    print(f"Dropped {len(y_train_raw) - len(y_train_raw_filtered)} outliers from train")
+    X_cv_all = pd.concat([df_train_part, df_val_part], ignore_index=True)
+    y_cv_all = np.concatenate([y_train_raw, y_val_raw])
 
-    y_train = np.log1p(y_train_raw_filtered)
-    y_val_log = np.log1p(y_val)
-
-    print(f"Loaded features matrix. Train: {X_train.shape}, Val: {X_val.shape}, Test: {X_test.shape}")
-    return X_train, y_train, X_val, y_val_log, X_test, y_test_raw
+    print(f"Loaded features matrix. CV Pool: {X_cv_all.shape}, Test: {df_test.shape}")
+    return X_cv_all, y_cv_all, df_test, y_test_raw
 
 
-def train(X_train, y_train, X_val, y_val):
-    print("CatBoost training")
+def train_cv(X_cv, y_cv, base_path):
+    print("CatBoost estimate regression")
 
-    cat_features_indices = [775, 776, 777]
+    cat_features_indices = ['region', 'subsystem', 'commitments']
+    base_dir = os.path.dirname(base_path)
+    os.makedirs(base_dir, exist_ok=True)
 
-    model = CatBoostRegressor(
-        iterations=12000,
-        learning_rate=0.015,
-        depth=8,
-        loss_function='RMSE',
-        l2_leaf_reg=6.0,
-        eval_metric='RMSE',
-        random_seed=42,
-        task_type="CPU",
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    saved_model_paths = []
+    cv_scores = []
+
+    for fold, (train_idx, val_idx) in enumerate(kf.split(X_cv, y_cv)):
+        print(f"\n--- Training Fold {fold + 1}/5 ---")
+
+        X_train_fold = X_cv.iloc[train_idx].copy()
+        X_val_fold = X_cv.iloc[val_idx].copy()
+        y_train_fold_raw = y_cv[train_idx]
+        y_val_fold_raw = y_cv[val_idx]
+
+        lower_bound, upper_bound = np.percentile(y_train_fold_raw, 1), np.percentile(y_train_fold_raw, 99)
+        train_mask = (y_train_fold_raw >= lower_bound) & (y_train_fold_raw <= upper_bound)
+
+        X_train_fold = X_train_fold.iloc[train_mask].reset_index(drop=True)
+        y_train_fold_raw = y_train_fold_raw[train_mask]
+
+        y_train_fold = np.log1p(y_train_fold_raw)
+        y_val_fold = np.log1p(y_val_fold_raw)
+
+        train_pool = Pool(
+            data=X_train_fold,
+            label=y_train_fold,
+            cat_features=cat_features_indices
+        )
+
+        val_pool = Pool(
+            data=X_val_fold,
+            label=y_val_fold,
+            cat_features=cat_features_indices
+        )
+
+        model = CatBoostRegressor(
+            iterations=15000,
+            learning_rate=0.03,
+            depth=8,
+            loss_function='RMSE',
+            l2_leaf_reg=6.0,
+            eval_metric='RMSE',
+            random_seed=42 + fold,
+            task_type="CPU",
+            cat_features=cat_features_indices
+        )
+
+        model.fit(
+            train_pool,
+            eval_set=val_pool,
+            early_stopping_rounds=150,
+            logging_level='Verbose'
+        )
+
+        val_pred_log = model.predict(val_pool)
+        val_pred = np.expm1(val_pred_log)
+        val_pred = np.clip(val_pred, a_min=0.0, a_max=None)
+
+        fold_r2 = r2_score(y_val_fold_raw, val_pred)
+        print(f"Fold {fold + 1} Validation R² Score: {fold_r2:.4f}")
+        cv_scores.append(fold_r2)
+
+        fold_path = os.path.join(base_dir, f"estimate_fold_{fold}.cbm")
+        model.save_model(fold_path)
+        saved_model_paths.append(fold_path)
+
+        del model
+        del train_pool
+        del val_pool
+
+    print(f"\nMean CV R² Score: {np.mean(cv_scores):.4f} (+/- {np.std(cv_scores):.4f})")
+    return saved_model_paths
+
+
+def evaluate_ensemble(model_paths, X_test, y_test_raw):
+    print(f"Evaluating ensemble on test data (Target: Actual Logged Days)")
+
+    cat_features_indices = ['region', 'subsystem', 'commitments']
+
+    test_pool = Pool(
+        data=X_test,
         cat_features=cat_features_indices
     )
 
-    model.fit(
-        X_train, y_train,
-        eval_set=(X_val, y_val),
-        early_stopping_rounds=150,
-        logging_level='Verbose'
-    )
-    return model
+    preds_log_list = []
+    for path in model_paths:
+        model = CatBoostRegressor().load_model(path)
+        preds_log_list.append(model.predict(test_pool))
+        del model
 
+    mean_pred_log = np.mean(preds_log_list, axis=0)
 
-def evaluate(model, X_test, y_test_raw):
-    print(f"Evaluating model on test data (Target: Actual Logged Days)")
-
-    y_pred_log = model.predict(X_test)
-    y_pred = np.expm1(y_pred_log)
+    y_pred = np.expm1(mean_pred_log)
     y_pred = np.clip(y_pred, a_min=0.0, a_max=None)
 
     y_true = y_test_raw
@@ -115,17 +180,11 @@ def evaluate(model, X_test, y_test_raw):
     print(f"  ≤ 1.00 FTE: {(np.mean(abs_errors <= 1.00) * 100):.2f}% задач")
     print(f"  > 2.00 FTE: {(np.mean(abs_errors > 2.00) * 100):.2f}% задач")
 
-def save_model(model, path="models/catboost_estimate_model.cbm"):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    model.save_model(path)
-    print(f"CatBoost model saved to: {path}")
-
 
 def main():
-    X_train, y_train, X_val, y_val, X_test, y_test_raw = load_data()
-    model = train(X_train, y_train, X_val, y_val)
-    evaluate(model, X_test, y_test_raw)
-    save_model(model, CONFIG['catboost_estimate_model_save_path'])
+    X_cv, y_cv, X_test, y_test_raw = load_data()
+    model_paths = train_cv(X_cv, y_cv, CONFIG['catboost_estimate_model_save_path'])
+    evaluate_ensemble(model_paths, X_test, y_test_raw)
 
 
 if __name__ == '__main__':
