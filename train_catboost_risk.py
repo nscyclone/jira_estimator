@@ -27,7 +27,9 @@ def load_risk_data():
         'text_len', 'word_count'
     ]
     cat_cols = ['region', 'subsystem', 'commitments']
-    emb_cols = [f'emb_{i}' for i in range(768)]
+
+    num_emb_features = X_train_emb.shape[1]
+    emb_cols = [f'emb_{i}' for i in range(num_emb_features)]
 
     df_train_part = pd.DataFrame(X_train_emb, columns=emb_cols)
     for col in num_cols:
