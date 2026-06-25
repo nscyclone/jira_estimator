@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from catboost import CatBoostClassifier, CatBoostRegressor, Pool
 from config import CONFIG
+from feature_engineering import compute_text_features
 
 ml_models = {}
 
@@ -53,33 +54,16 @@ class JiraTask(BaseModel):
 def extract_features(summary: str, description: str, region: str, subsystem: str, commitments: str) -> pd.DataFrame:
     full_text = f"{summary} {description}".strip()
 
-    has_description = 1 if description.strip() else 0
-    has_code_block = 1 if "{code" in description.lower() else 0
+    features = compute_text_features(full_text, description)
 
-    text_lower = full_text.lower()
-    is_dev_task = 1 if any(w in text_lower for w in ['разраб', 'dev', 'implement', 'feature', 'фич', 'кодиров']) else 0
-    is_test_task = 1 if any(w in text_lower for w in ['тест', 'test', 'qa', 'проверк', 'autotest', 'автотест']) else 0
-    is_analysis_task = 1 if any(
-        w in text_lower for w in ['анализ', 'anali', 'тз', 'требован', 'проектир', 'requirement']) else 0
-
-    text_len = len(full_text)
-    word_count = len(full_text.split())
-
-    # Generate fast LSA components using the pre-trained fast TF-IDF/SVD workflow
     text_sparse = ml_models["vectorizer"].transform([full_text])
     lsa_embedding = ml_models["svd_transformer"].transform(text_sparse).flatten()
 
-    num_emb_features = len(lsa_embedding)
-    emb_cols = [f'emb_{i}' for i in range(num_emb_features)]
+    emb_cols = [f'emb_{i}' for i in range(len(lsa_embedding))]
     df = pd.DataFrame([lsa_embedding], columns=emb_cols)
 
-    df['has_description'] = float(has_description)
-    df['has_code_block'] = float(has_code_block)
-    df['is_dev_task'] = float(is_dev_task)
-    df['is_test_task'] = float(is_test_task)
-    df['is_analysis_task'] = float(is_analysis_task)
-    df['text_len'] = float(text_len)
-    df['word_count'] = float(word_count)
+    for key, val in features.items():
+        df[key] = float(val)
 
     df['region'] = str(region)
     df['subsystem'] = str(subsystem)
@@ -95,13 +79,13 @@ def health_check():
 
 @app.post("/predict")
 def predict(task: JiraTask):
-    try:
-        if not task.summary.strip():
-            raise HTTPException(status_code=400, detail="Summary cannot be empty")
+    if not task.summary.strip():
+        raise HTTPException(status_code=400, detail="Summary cannot be empty")
 
+    try:
         feature_df = extract_features(
             task.summary, task.description,
-            task.region, task.subsystem, task.commitments
+            task.region, task.subsystem, task.commitments,
         )
 
         cat_features = ['region', 'subsystem', 'commitments']
@@ -110,7 +94,7 @@ def predict(task: JiraTask):
         reg_preds_log = [model.predict(pool) for model in ml_models["est_folds"]]
         mean_pred_log = np.mean(reg_preds_log)
         base_estimate_days = float(np.expm1(mean_pred_log))
-        base_estimate_hours = max(0.0, base_estimate_days * 8)
+        base_estimate_hours = max(0.0, base_estimate_days * CONFIG['workday_hours'])
 
         prob_list = [model.predict_proba(pool) for model in ml_models["risk_folds"]]
         mean_probabilities = np.mean(prob_list, axis=0).flatten()
@@ -128,13 +112,15 @@ def predict(task: JiraTask):
             "risk_profile": {
                 "low_risk_prob_pct": round(prob_low * 100, 1),
                 "medium_risk_prob_pct": round(prob_medium * 100, 1),
-                "critical_risk_prob_pct": round(prob_critical * 100, 1)
-            }
+                "critical_risk_prob_pct": round(prob_critical * 100, 1),
+            },
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)

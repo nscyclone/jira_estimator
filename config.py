@@ -2,7 +2,7 @@ CONFIG = {
     # Model & tokenizer
     'model_name': 'sergeyzh/BERTA',
     'max_length': 256,
-    'num_risk_classes': 4,
+    'num_risk_classes': 3,
 
     # Hyperparams
     'batch_size': 32,
@@ -20,5 +20,8 @@ CONFIG = {
     'model_save_path': 'models/multitask_rubert.pt',
     'embeddings_save_path': 'embeddings',
     'catboost_estimate_model_save_path': 'models/catboost_estimate_model.cbm',
-    'catboost_risk_model_save_path': 'models/catboost_risk_model.cbm'
+    'catboost_risk_model_save_path': 'models/catboost_risk_model.cbm',
+
+    # Business constants
+    'workday_hours': 8,
 }

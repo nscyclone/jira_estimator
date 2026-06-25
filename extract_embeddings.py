@@ -7,14 +7,7 @@ from transformers import AutoTokenizer, AutoModel
 from config import CONFIG
 
 
-def extract_embeddings(csv_path, output_prefix):
-    device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-    print(f"Using device: {device}")
-
-    tokenizer = AutoTokenizer.from_pretrained(CONFIG['model_name'])
-    model = AutoModel.from_pretrained(CONFIG['model_name']).to(device)
-    model.eval()
-
+def extract_embeddings(csv_path, output_prefix, tokenizer, model, device):
     print(f"Reading a dataset from {csv_path}")
     df = pd.read_csv(csv_path)
     embeddings_list = []
@@ -28,22 +21,17 @@ def extract_embeddings(csv_path, output_prefix):
             padding='max_length',
             truncation=True,
             max_length=CONFIG['max_length'],
-            return_tensors='pt'
+            return_tensors='pt',
         ).to(device)
 
         with torch.no_grad():
             outputs = model(**encodings)
-
-            # Get embedding of [CLS]-token
             hidden_states = outputs if isinstance(outputs, tuple) else outputs.last_hidden_state
             cls_embeddings = hidden_states[:, 0, :].cpu().numpy()
 
         embeddings_list.append(cls_embeddings)
 
-    # Glue into a single matrix
     X = np.vstack(embeddings_list)
-
-    # Targets
     y_estimate = df['logged_days'].values
     y_risk = df['risk_level'].values
 
@@ -54,10 +42,17 @@ def extract_embeddings(csv_path, output_prefix):
 
 
 def main():
+    device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+    print(f"Using device: {device}")
+
+    tokenizer = AutoTokenizer.from_pretrained(CONFIG['model_name'])
+    model = AutoModel.from_pretrained(CONFIG['model_name']).to(device)
+    model.eval()
+
     os.makedirs(CONFIG['embeddings_save_path'], exist_ok=True)
-    extract_embeddings(CONFIG['train_path'], 'train')
-    extract_embeddings(CONFIG['val_path'], 'val')
-    extract_embeddings(CONFIG['test_path'], 'test')
+    extract_embeddings(CONFIG['train_path'], 'train', tokenizer, model, device)
+    extract_embeddings(CONFIG['val_path'], 'val', tokenizer, model, device)
+    extract_embeddings(CONFIG['test_path'], 'test', tokenizer, model, device)
     print("Done.")
 
 
