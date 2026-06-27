@@ -3,6 +3,8 @@
 **Data-driven advisory tool for software task estimation.**  
 Predicts expected effort in workdays from a Jira ticket's text and metadata, giving teams an objective anchor before planning poker and assignee selection.
 
+![CI](https://github.com/nscyclone/jira_estimator/actions/workflows/ci.yml/badge.svg)
+
 ---
 
 ## Problem
@@ -46,11 +48,18 @@ split_data.py            ← stratified 80/10/10 train/val/test split
 extract_bm25_lsa.py      ← TF-IDF (sublinear_tf, min_df=2, 25k vocab)
                             + TruncatedSVD (32 components) → LSA embeddings
     │
-    ├── train_catboost_estimate.py   ← 5-Fold KFold regression ensemble
-    └── train_catboost_risk.py       ← 5-Fold KFold classification ensemble
+    ├── train_catboost_estimate.py   ← 5-Fold KFold regression ensemble + MLflow
+    └── train_catboost_risk.py       ← 5-Fold KFold classification ensemble + MLflow
                 │
                 ▼
-            app.py (FastAPI)         ← inference: ensemble mean + risk buffer
+         MLflow (file:./mlruns)      ← experiment tracking, SHAP artifacts
+         SQLite (feedback.db)        ← model_runs + feedback tables
+                │
+                ▼
+            app.py (FastAPI)         ← inference + feedback + explainability
+                │
+                ├── retrain.py       ← threshold-triggered retraining (50 feedbacks)
+                └── demo.py          ← Streamlit UI (Predict / Metrics / Feedback)
 ```
 
 ### Feature Set (42 total)
@@ -85,8 +94,6 @@ Per-fold outlier removal: 1st–99th percentile of training labels only.
 adjusted_hours = base_hours × (1 + 0.15 × P_medium + 0.50 × P_critical)
 ```
 
-The buffer converts probabilistic risk into a conservative planning estimate — not a hard deadline, but an upper bound the team should discuss before sprint commitment.
-
 ---
 
 ## Results
@@ -95,12 +102,10 @@ The buffer converts probabilistic risk into a conservative planning estimate —
 
 | Metric | Value |
 |---|---|
-| CV R² (5-Fold, mean ± std) | 0.166 ± 0.007 |
+| CV R² (5-Fold, mean ± std) | 0.157 ± 0.008 |
 | Test R² | 0.144 |
-| Test MAE | 1.23 FTE |
-| Test RMSE | — |
+| Test MAE | 1.24 FTE |
 | Dataset mean | 1.97 FTE |
-| Dataset std | 3.45 FTE |
 | MdAPE | 32.6% |
 
 ### Architecture Comparison
@@ -119,32 +124,59 @@ The buffer converts probabilistic risk into a conservative planning estimate —
 | Recall (Critical class) | 59% |
 | Precision (Risk classes) | 27–31% |
 
-**Interpretation**: The classifier catches ~6 in 10 critical overruns before they happen — useful as an early-warning signal, not as a decision gate.
-
-### Critical Limitations
-
-- MAE = 1.23 FTE on a mean of 1.97 FTE (~62% relative error). **Do not use as an automated sprint planner.**
-- 70% of risk alerts are false positives. Extended use without UX care will cause alert fatigue.
-- Model generalises only to backlogs with similar domain, team, and workflow. Retraining on your own data is required.
+**Interpretation**: The classifier catches ~6 in 10 critical overruns before they happen — useful as an early-warning signal, not as a decision gate. ~70% of alerts are false positives; use accordingly.
 
 ---
 
-## Quickstart (Docker)
+## Quickstart (local)
 
-Requires trained model files in `models/` and `embeddings/bm25_lsa_pipeline.pkl`.
+### Prerequisites
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Requires trained model files in `models/` and `embeddings/bm25_lsa_pipeline.pkl`.  
+If starting fresh, run the [full pipeline](#full-pipeline-local) first.
+
+### Seed baseline metrics and start the API
+
+```bash
+# Seed model_runs table with baseline metrics (idempotent)
+python seed_model_runs.py
+
+# Start inference server
+uvicorn app:app --host 0.0.0.0 --port 8000
+
+# (Optional) Start Streamlit demo
+streamlit run demo.py
+```
+
+### Docker
 
 ```bash
 docker build -t jira-estimator .
 docker run -p 8000:8000 jira-estimator
 ```
 
-Health check:
-```bash
-curl http://localhost:8000/health
-# {"status":"ok","folds_loaded":true}
+---
+
+## API Reference
+
+### `GET /health`
+
+```json
+{
+  "status": "ok",
+  "folds_loaded": true,
+  "model_revision": "48d6f30",
+  "model_published_at": "2026-06-27T20:53:27+00:00"
+}
 ```
 
-Predict:
+### `POST /predict`
+
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
@@ -157,7 +189,6 @@ curl -X POST http://localhost:8000/predict \
   }'
 ```
 
-Response:
 ```json
 {
   "predicted_time_hours": 12.4,
@@ -170,24 +201,119 @@ Response:
 }
 ```
 
+### `POST /explain`
+
+Returns SHAP feature contributions for the effort estimate (fold 0, log-space values).
+
+```json
+{
+  "base_value": 1.83,
+  "prediction": 1.6,
+  "top_features": [
+    {"feature": "region", "shap_value": 0.1842},
+    {"feature": "emb_7",  "shap_value": -0.0913}
+  ]
+}
+```
+
+`shap_value` is in log-space: positive = increases estimate, negative = decreases. `exp(shap_value)` ≈ multiplicative effect on days.
+
+### `POST /feedback`
+
+```bash
+curl -X POST http://localhost:8000/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "summary": "Implement OAuth2 login for the mobile client",
+    "description": "Backend endpoint ready, need mobile client",
+    "region": "MOSCOW",
+    "subsystem": "Auth/Mobile",
+    "commitments": "Q3",
+    "predicted_days": 1.5,
+    "actual_days": 2.0
+  }'
+```
+
+```json
+{
+  "delta_pct": 25.0,
+  "feedback_count": 12,
+  "unused_feedback_count": 12,
+  "retrain_ready": false
+}
+```
+
+### `GET /metrics`
+
+Dynamic metrics from SQLite — updates automatically after each training run.
+
+```json
+{
+  "model_revision": "48d6f30",
+  "model_published_at": "2026-06-27T20:53:27+00:00",
+  "model_trigger": "manual",
+  "model_r2": 0.144,
+  "model_mae": 1.242,
+  "model_overrun_recall": 0.59,
+  "feedbacks_collected": 12,
+  "feedback_mean_delta_pct": 18.3,
+  "feedback_accuracy_within_25pct": 0.667,
+  "estimated_hours_saved_per_sprint": 3.0
+}
+```
+
+---
+
+## MLOps
+
+### Experiment Tracking
+
+All training runs are logged to MLflow (`file:./mlruns`, no server required):
+
+```bash
+mlflow ui --backend-store-uri file:./mlruns --port 5000
+```
+
+Each run records hyperparameters, per-fold CV scores, test metrics, and a SHAP summary plot.
+
+### Feedback Loop
+
+```
+User submits feedback via /feedback or Streamlit
+    │
+    ▼
+feedback.db (is_used_for_training = 0)
+    │
+    ▼ (when unused count ≥ 50)
+retrain.py
+    │
+    ├── Augments CV training set with feedback rows
+    ├── Retrains estimate model (5-Fold CatBoostRegressor)
+    ├── Logs new MLflow run (trigger='feedback')
+    └── Updates model_runs → /health and /metrics reflect new revision
+```
+
+```bash
+# Check if retraining threshold is reached (dry run)
+python retrain.py --dry-run
+
+# Trigger retraining
+python retrain.py
+```
+
+### Seeding Baseline Metrics
+
+For local development or demo setup without a full training run:
+
+```bash
+python seed_model_runs.py          # idempotent, skips if already seeded
+python seed_model_runs.py --force  # re-seed even if rows exist
+python seed_model_runs.py --db path/to/custom.db
+```
+
 ---
 
 ## Full Pipeline (local)
-
-### Prerequisites
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Set your Jira session cookie:
-```bash
-export JIRA_COOKIE="JSESSIONID=your_session_id_here"
-export JIRA_URL="https://your-jira-instance.example.com"   # optional, has default
-```
-
-### Step-by-step
 
 ```bash
 # 1. Export raw backlog from Jira
@@ -202,10 +328,10 @@ python split_data.py                # → data/train.csv, val.csv, test.csv
 # 4. Fit LSA embedding pipeline
 python extract_bm25_lsa.py          # → embeddings/*.npy + bm25_lsa_pipeline.pkl
 
-# 5. Train regression ensemble
+# 5. Train regression ensemble (logs to MLflow)
 python train_catboost_estimate.py   # → models/estimate_fold_{0..4}.cbm
 
-# 6. Train risk classification ensemble
+# 6. Train risk classification ensemble (logs to MLflow)
 python train_catboost_risk.py       # → models/risk_fold_{0..4}.cbm
 
 # 7. Start inference server
@@ -217,26 +343,36 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 ## Project Structure
 
 ```
-├── app.py                      # FastAPI inference server
-├── config.py                   # Centralised config (paths, hyperparams)
+├── app.py                      # FastAPI server (predict, explain, feedback, metrics, health)
+├── config.py                   # Centralised config (paths, hyperparams, MLflow, SQLite)
 ├── feature_engineering.py      # Shared keyword lists + compute_text_features()
-├── dataset.py                  # Unified JiraDataset (PyTorch, for BERT experiments)
+├── feedback.py                 # SQLite store — feedback and model_runs tables
+├── retrain.py                  # Feedback-triggered retraining (threshold: 50 rows)
+├── seed_model_runs.py          # Seed model_runs with baseline metrics for local dev
+├── demo.py                     # Streamlit demo (Predict / Metrics / Feedback tabs)
+│
+├── train_catboost_estimate.py  # 5-Fold CatBoostRegressor training + MLflow + SHAP
+├── train_catboost_risk.py      # 5-Fold CatBoostClassifier training + MLflow
+├── load_catboost_data.py       # Shared data loader for both CatBoost trainers
+├── extract_bm25_lsa.py         # TF-IDF + TruncatedSVD pipeline
+│
 ├── prepare_data.py             # Raw → clean dataset with features + risk labels
 ├── split_data.py               # Stratified train/val/test split
-├── extract_bm25_lsa.py         # TF-IDF + TruncatedSVD pipeline
-├── extract_embeddings.py       # RuBERT CLS-token embedding extraction (archived)
-├── load_catboost_data.py       # Shared data loader for both CatBoost trainers
-├── train_catboost_estimate.py  # 5-Fold CatBoostRegressor training + evaluation
-├── train_catboost_risk.py      # 5-Fold CatBoostClassifier training + evaluation
+├── get_jira_issues.py          # Jira REST API export script
+│
+├── dataset.py                  # JiraDataset (PyTorch, for BERT experiments — archived)
 ├── estimate_model.py           # RuBERT regression head (archived)
 ├── risk_model.py               # RuBERT classification head (archived)
 ├── estimate_train.py           # RuBERT training loop (archived)
-├── get_jira_issues.py          # Jira REST API export script
-├── Dockerfile                  # Production inference image
-├── requirements.txt
-├── embeddings/                 # LSA pipeline + embedding arrays
-├── models/                     # Trained .cbm fold models
-└── data/                       # CSV datasets (not committed)
+│
+├── tests/
+│   └── test_feedback.py        # SQLite store unit tests (no ML deps)
+├── .github/workflows/ci.yml    # CI: ruff lint + pytest on Python 3.12
+├── ruff.toml                   # Linter config
+│
+├── embeddings/                 # bm25_lsa_pipeline.pkl + *.npy arrays (not committed)
+├── models/                     # Trained .cbm fold models (not committed)
+└── data/                       # CSV schemas committed; full data kept locally (NDA)
 ```
 
 ---
@@ -254,7 +390,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ## AI Tools Used
 
-- **Claude Code** (Anthropic) — automated code review identifying a data leakage bug (`global_val_pool` passed as `eval_set` across all folds), `num_risk_classes` config mismatch, duplicate data loaders, and insecure credential handling; applied refactoring to consolidate duplicated feature engineering logic into `feature_engineering.py`.
+- **Claude Code** (Anthropic) — code review, refactoring, MLOps architecture (MLflow integration, feedback loop design, SHAP explainability, Streamlit demo, GitHub Actions CI).
 
 ---
 
@@ -265,6 +401,11 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 | Inference API | FastAPI + Uvicorn |
 | ML models | CatBoost 1.2.5 |
 | Text pipeline | scikit-learn TF-IDF + TruncatedSVD |
+| Experiment tracking | MLflow 2.13.0 (file-based) |
+| Feedback store | SQLite (stdlib) |
+| Explainability | CatBoost native SHAP |
+| Demo UI | Streamlit |
 | Data | pandas + numpy |
-| Containerisation | Docker (python:3.10-slim) |
+| Containerisation | Docker |
+| CI | GitHub Actions (ruff + pytest) |
 | Experiment infra | BERT experiments: PyTorch 2.3 + HuggingFace Transformers |
