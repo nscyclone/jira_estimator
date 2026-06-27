@@ -1,0 +1,13 @@
+[project]
+name = "jiraestimator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib==3.9.0",
+    "mlflow==2.13.0",
+    "pytest==8.2.2",
+    "setuptools<75",
+    "wordcloud>=1.9.6",
+]
