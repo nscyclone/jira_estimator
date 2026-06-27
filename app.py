@@ -71,6 +71,7 @@ class JiraTask(BaseModel):
 
 class FeedbackRequest(BaseModel):
     summary: str
+    description: str = ""
     region: str = "Unknown"
     subsystem: str = "Unknown"
     commitments: str = "Unknown"
@@ -145,6 +146,7 @@ def post_feedback(req: FeedbackRequest):
     insert_feedback(
         CONFIG['feedback_db_path'],
         summary=req.summary,
+        description=req.description,
         region=req.region,
         subsystem=req.subsystem,
         commitments=req.commitments,

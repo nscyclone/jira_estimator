@@ -11,6 +11,7 @@ def init_db(db_path: str) -> None:
                 id                    INTEGER PRIMARY KEY AUTOINCREMENT,
                 created_at            TEXT    NOT NULL,
                 summary               TEXT    NOT NULL,
+                description           TEXT    DEFAULT '',
                 region                TEXT,
                 subsystem             TEXT,
                 commitments           TEXT,
@@ -20,6 +21,11 @@ def init_db(db_path: str) -> None:
                 is_used_for_training  INTEGER DEFAULT 0
             )
         """)
+        # Migrate existing DBs that predate the description column
+        try:
+            conn.execute("ALTER TABLE feedback ADD COLUMN description TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         conn.execute("""
             CREATE TABLE IF NOT EXISTS model_runs (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +47,7 @@ def insert_feedback(
     db_path: str,
     *,
     summary: str,
+    description: str = "",
     region: str,
     subsystem: str,
     commitments: str,
@@ -51,12 +58,12 @@ def insert_feedback(
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
             """INSERT INTO feedback
-               (created_at, summary, region, subsystem, commitments,
+               (created_at, summary, description, region, subsystem, commitments,
                 predicted_days, actual_days, delta_pct)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 datetime.now(timezone.utc).isoformat(),
-                summary, region, subsystem, commitments,
+                summary, description, region, subsystem, commitments,
                 predicted_days, actual_days, delta_pct,
             ),
         )
@@ -80,7 +87,7 @@ def get_feedback_rows_for_training(db_path: str) -> list:
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            """SELECT id, summary, region, subsystem, commitments, actual_days
+            """SELECT id, summary, description, region, subsystem, commitments, actual_days
                FROM feedback WHERE is_used_for_training=0"""
         ).fetchall()
     return [dict(r) for r in rows]

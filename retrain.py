@@ -39,8 +39,9 @@ def build_feedback_features(rows: list) -> tuple:
     feature_rows = []
     y_vals = []
     for fb in rows:
-        full_text = str(fb["summary"])
-        structural = compute_text_features(full_text, "")
+        description = str(fb.get("description") or "")
+        full_text = f"{fb['summary']} {description}".strip()
+        structural = compute_text_features(full_text, description)
         sparse = vectorizer.transform([full_text])
         lsa = svd.transform(sparse).flatten().astype(np.float32)
 
