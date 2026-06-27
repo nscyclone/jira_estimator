@@ -92,7 +92,6 @@ with tab_metrics:
                        f"Mean delta: {m.get('feedback_mean_delta_pct') or 'N/A'}%")
 
             if m.get("model_overrun_recall"):
-                fp_rate = 1.0 - 0.29  # ~70% false positive rate, honest disclosure
                 st.info(
                     f"**Honest disclosure:** Risk classifier catches {m['model_overrun_recall']:.0%} of critical "
                     f"overruns but has ~70% false positive rate. Use as early-warning signal, not a decision gate."
@@ -136,10 +135,12 @@ with tab_feedback:
                 }, timeout=5)
                 resp.raise_for_status()
                 result = resp.json()
-                need_more = 50 - result["feedback_count"]
+                unused = result.get("unused_feedback_count", result["feedback_count"])
+                need_more = max(0, 50 - unused)
                 retrain_note = "🔄 Ready to retrain!" if result["retrain_ready"] else f"Need {need_more} more to trigger retraining"
+                delta_str = f"{result['delta_pct']:.1f}%" if result["delta_pct"] is not None else "N/A"
                 st.success(
-                    f"Feedback saved! Delta: {result['delta_pct']:.1f}% | "
+                    f"Feedback saved! Delta: {delta_str} | "
                     f"Total collected: {result['feedback_count']} | "
                     f"{retrain_note}"
                 )

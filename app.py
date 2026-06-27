@@ -157,6 +157,7 @@ def post_feedback(req: FeedbackRequest):
     return {
         "delta_pct": round(delta_pct, 1) if delta_pct is not None else None,
         "feedback_count": count,
+        "unused_feedback_count": unused,
         "retrain_ready": unused >= CONFIG['retrain_threshold'],
     }
 
