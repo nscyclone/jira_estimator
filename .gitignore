@@ -18,5 +18,12 @@ shap_summary_estimate.png
 # CatBoost training logs
 catboost_info/
 
+# Data — full CSV files contain NDA data and are kept locally only.
+# Committed stubs (data/*.csv) contain headers only and are protected
+# via `git update-index --skip-worktree`. New data files are blocked here.
+data/**/*.csv
+data/*.csv.gz
+data/*.parquet
+
 # uv lock (optional — include if you want reproducible installs across machines)
 # uv.lock
