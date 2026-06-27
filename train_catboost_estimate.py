@@ -27,7 +27,6 @@ def train_cv(X_cv, y_cv, base_path):
     saved_model_paths = []
     cv_scores = []
     last_X_val = None
-    last_y_val_raw = None
 
     for fold, (train_idx, val_idx) in enumerate(kf.split(X_cv, y_cv)):
         print(f"\n--- Training Fold {fold + 1}/5 ---")
@@ -75,7 +74,6 @@ def train_cv(X_cv, y_cv, base_path):
 
         if fold == 4:
             last_X_val = X_val_fold.copy()
-            last_y_val_raw = y_val_fold_raw.copy()
 
         del model, train_pool, val_pool
 

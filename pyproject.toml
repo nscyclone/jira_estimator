@@ -11,3 +11,8 @@ dependencies = [
     "setuptools<75",
     "wordcloud>=1.9.6",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff==0.4.7",
+]

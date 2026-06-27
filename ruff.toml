@@ -1,0 +1,9 @@
+[lint]
+exclude = [
+    ".venv",
+    "catboost_info",
+    "estimate_model.py",
+    "risk_model.py",
+    "estimate_train.py",
+    "dataset.py",
+]

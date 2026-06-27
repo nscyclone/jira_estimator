@@ -1,4 +1,3 @@
-import os
 import pytest
 from feedback import (
     init_db, insert_feedback, get_feedback_count,
