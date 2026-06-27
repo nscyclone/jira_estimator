@@ -107,6 +107,7 @@ with tab_feedback:
     st.caption("This data is used to retrain the model when 50 feedback entries are collected.")
 
     fb_summary = st.text_input("Ticket Summary *", key="fb_summary")
+    fb_description = st.text_area("Description", "", height=80, key="fb_description")
     col1, col2 = st.columns(2)
     with col1:
         fb_predicted = st.number_input("Predicted (days)", min_value=0.0, value=1.5, step=0.5)
@@ -127,6 +128,7 @@ with tab_feedback:
             try:
                 resp = requests.post(f"{API_BASE}/feedback", json={
                     "summary": fb_summary,
+                    "description": fb_description,
                     "region": fb_region,
                     "subsystem": fb_subsystem,
                     "commitments": fb_commitments,
