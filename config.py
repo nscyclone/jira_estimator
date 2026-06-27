@@ -24,4 +24,10 @@ CONFIG = {
 
     # Business constants
     'workday_hours': 8,
+
+    # MLOps
+    'mlflow_tracking_uri': 'file:./mlruns',
+    'mlflow_experiment_name': 'jira_estimator',
+    'feedback_db_path': 'feedback.db',
+    'retrain_threshold': 50,
 }
