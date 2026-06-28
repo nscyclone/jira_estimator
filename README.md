@@ -36,20 +36,20 @@ The honest answer from our research: **partially** — and the constraints are w
 Jira Backlog
     │
     ▼
-get_jira_issues.py       ← REST API export (JQL, pagination)
+scripts/get_jira_issues.py       ← REST API export (JQL, pagination)
     │
     ▼
-prepare_data.py          ← feature engineering + risk label creation
+scripts/prepare_data.py          ← feature engineering + risk label creation
     │
     ▼
-split_data.py            ← stratified 80/10/10 train/val/test split
+scripts/split_data.py            ← stratified 80/10/10 train/val/test split
     │
     ▼
-extract_bm25_lsa.py      ← TF-IDF (sublinear_tf, min_df=2, 25k vocab)
-                            + TruncatedSVD (32 components) → LSA embeddings
+scripts/extract_bm25_lsa.py      ← TF-IDF (sublinear_tf, min_df=2, 25k vocab)
+                                    + TruncatedSVD (32 components) → LSA embeddings
     │
-    ├── train_catboost_estimate.py   ← 5-Fold KFold regression ensemble + MLflow
-    └── train_catboost_risk.py       ← 5-Fold KFold classification ensemble + MLflow
+    ├── scripts/train_catboost_estimate.py   ← 5-Fold KFold regression ensemble + MLflow
+    └── scripts/train_catboost_risk.py       ← 5-Fold KFold classification ensemble + MLflow
                 │
                 ▼
          MLflow (file:./mlruns)      ← experiment tracking, SHAP artifacts
@@ -58,8 +58,8 @@ extract_bm25_lsa.py      ← TF-IDF (sublinear_tf, min_df=2, 25k vocab)
                 ▼
             app.py (FastAPI)         ← inference + feedback + explainability
                 │
-                ├── retrain.py       ← threshold-triggered retraining (50 feedbacks)
-                └── demo.py          ← Streamlit UI (Predict / Metrics / Feedback)
+                ├── scripts/retrain.py   ← threshold-triggered retraining (50 feedbacks)
+                └── demo.py              ← Streamlit UI (Predict / Metrics / Feedback)
 ```
 
 ### Feature Set (42 total)
@@ -144,7 +144,7 @@ If starting fresh, run the [full pipeline](#full-pipeline-local) first.
 
 ```bash
 # Seed model_runs table with baseline metrics (idempotent)
-python seed_model_runs.py
+python scripts/seed_model_runs.py
 
 # Start inference server
 uvicorn app:app --host 0.0.0.0 --port 8000
@@ -307,10 +307,10 @@ retrain.py
 
 ```bash
 # Check if retraining threshold is reached (dry run)
-python retrain.py --dry-run
+python scripts/retrain.py --dry-run
 
 # Trigger retraining
-python retrain.py
+python scripts/retrain.py
 ```
 
 ### Seeding Baseline Metrics
@@ -329,22 +329,22 @@ python seed_model_runs.py --db path/to/custom.db
 
 ```bash
 # 1. Export raw backlog from Jira
-python get_jira_issues.py           # → data/seed.csv
+python scripts/get_jira_issues.py           # → data/seed.csv
 
 # 2. Feature engineering + risk labelling
-python prepare_data.py              # → data/dataset.csv
+python scripts/prepare_data.py              # → data/dataset.csv
 
 # 3. Stratified train/val/test split
-python split_data.py                # → data/train.csv, val.csv, test.csv
+python scripts/split_data.py                # → data/train.csv, val.csv, test.csv
 
 # 4. Fit LSA embedding pipeline
-python extract_bm25_lsa.py          # → embeddings/*.npy + bm25_lsa_pipeline.pkl
+python scripts/extract_bm25_lsa.py          # → embeddings/*.npy + bm25_lsa_pipeline.pkl
 
 # 5. Train regression ensemble (logs to MLflow)
-python train_catboost_estimate.py   # → models/estimate_fold_{0..4}.cbm
+python scripts/train_catboost_estimate.py   # → models/estimate_fold_{0..4}.cbm
 
 # 6. Train risk classification ensemble (logs to MLflow)
-python train_catboost_risk.py       # → models/risk_fold_{0..4}.cbm
+python scripts/train_catboost_risk.py       # → models/risk_fold_{0..4}.cbm
 
 # 7. Start inference server
 uvicorn app:app --host 0.0.0.0 --port 8000
@@ -359,23 +359,33 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 ├── config.py                   # Centralised config (paths, hyperparams, MLflow, SQLite)
 ├── feature_engineering.py      # Shared keyword lists + compute_text_features()
 ├── feedback.py                 # SQLite store — feedback and model_runs tables
-├── retrain.py                  # Feedback-triggered retraining (threshold: 50 rows)
-├── seed_model_runs.py          # Seed model_runs with baseline metrics for local dev
+├── load_catboost_data.py       # Shared data loader for CatBoost trainers
 ├── demo.py                     # Streamlit demo (Predict / Metrics / Feedback tabs)
 │
-├── train_catboost_estimate.py  # 5-Fold CatBoostRegressor training + MLflow + SHAP
-├── train_catboost_risk.py      # 5-Fold CatBoostClassifier training + MLflow
-├── load_catboost_data.py       # Shared data loader for both CatBoost trainers
-├── extract_bm25_lsa.py         # TF-IDF + TruncatedSVD pipeline
+├── scripts/
+│   ├── get_jira_issues.py          # Jira REST API export (requires JIRA_URL/JIRA_PROJECT/JIRA_COOKIE env vars)
+│   ├── prepare_data.py             # Raw → clean dataset with features + risk labels
+│   ├── split_data.py               # Stratified train/val/test split
+│   ├── extract_bm25_lsa.py         # TF-IDF + TruncatedSVD pipeline
+│   ├── train_catboost_estimate.py  # 5-Fold CatBoostRegressor training + MLflow + SHAP
+│   ├── train_catboost_risk.py      # 5-Fold CatBoostClassifier training + MLflow
+│   ├── retrain.py                  # Feedback-triggered retraining (threshold: 50 rows)
+│   ├── seed_model_runs.py          # Seed model_runs with baseline metrics for local dev
+│   ├── seed_synthetic_feedback.py  # Seed ~20 synthetic feedback rows for demo
+│   ├── compute_baseline.py         # Naive baseline comparison (median, by-subsystem)
+│   └── analyze_errors.py           # Per-subsystem/region MAE + worst predictions
 │
-├── prepare_data.py             # Raw → clean dataset with features + risk labels
-├── split_data.py               # Stratified train/val/test split
-├── get_jira_issues.py          # Jira REST API export script
+├── notebooks/
+│   └── pipeline.ipynb              # End-to-end walkthrough: seed → train → infer → retrain
 │
-├── dataset.py                  # JiraDataset (PyTorch, for BERT experiments — archived)
-├── estimate_model.py           # RuBERT regression head (archived)
-├── risk_model.py               # RuBERT classification head (archived)
-├── estimate_train.py           # RuBERT training loop (archived)
+├── archive/                        # BERT experiments (not used in production)
+│   ├── dataset.py                  # JiraDataset (PyTorch)
+│   ├── estimate_model.py           # RuBERT regression head
+│   ├── risk_model.py               # RuBERT classification head
+│   ├── estimate_train.py           # RuBERT training loop
+│   ├── extract_embeddings.py       # RuBERT embedding extraction
+│   ├── load_estimate_data.py       # BERT data loader (estimate)
+│   └── load_risk_data.py           # BERT data loader (risk)
 │
 ├── tests/
 │   └── test_feedback.py        # SQLite store unit tests (no ML deps)

@@ -9,7 +9,8 @@ WORKDIR /app
 COPY requirements-inference.txt .
 RUN pip install --no-cache-dir -r requirements-inference.txt
 
-COPY app.py config.py feature_engineering.py feedback.py seed_model_runs.py ./
+COPY app.py config.py feature_engineering.py feedback.py ./
+COPY scripts/seed_model_runs.py ./
 COPY models/ ./models/
 COPY embeddings/bm25_lsa_pipeline.pkl ./embeddings/
 
