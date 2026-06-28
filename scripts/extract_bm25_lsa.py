@@ -48,6 +48,10 @@ def main():
     np.save(f"{CONFIG['embeddings_save_path']}/val_X.npy", X_val_lsa)
     np.save(f"{CONFIG['embeddings_save_path']}/test_X.npy", X_test_lsa)
 
+    for split, df in [("train", train_df), ("val", val_df), ("test", test_df)]:
+        np.save(f"{CONFIG['embeddings_save_path']}/{split}_y_est.npy", df["logged_days"].values.astype(np.float32))
+        np.save(f"{CONFIG['embeddings_save_path']}/{split}_y_risk.npy", df["risk_level"].values.astype(np.int32))
+
     artifacts = {
         "vectorizer": vectorizer,
         "svd_transformer": svd
