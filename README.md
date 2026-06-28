@@ -299,6 +299,7 @@ curl -X POST http://localhost:8000/predict \
 {
   "predicted_time_hours": 12.4,
   "adjusted_time_with_buffer_hours": 15.1,
+  "prediction_std_days": 0.08,
   "risk_profile": {
     "low_risk_prob_pct": 61.3,
     "medium_risk_prob_pct": 24.7,
@@ -306,6 +307,8 @@ curl -X POST http://localhost:8000/predict \
   }
 }
 ```
+
+`prediction_std_days` — standard deviation of the 5-fold ensemble predictions in day-space. Use it as a free uncertainty estimate: high std means folds disagree on this ticket.
 
 ### `POST /explain`
 
@@ -379,6 +382,24 @@ Dynamic metrics from SQLite — updates automatically after each training run.
   "estimated_hours_saved_per_sprint": 3.0
 }
 ```
+
+### `POST /retrain`
+
+Checks whether unused feedback rows have reached the retraining threshold (default 50). If so, launches `scripts/retrain.py` as a background process and returns immediately.
+
+```bash
+curl -X POST http://localhost:8000/retrain
+```
+
+```json
+{ "status": "skipped", "unused_feedback_rows": 12, "threshold": 50 }
+```
+
+```json
+{ "status": "started", "pid": 84312, "unused_feedback_rows": 51 }
+```
+
+The process runs in the background — monitor progress via `GET /metrics` (model revision updates after completion) or MLflow UI.
 
 ---
 
