@@ -23,7 +23,7 @@ router = APIRouter()
 CAT_FEATURES = ["region", "subsystem", "commitments"]
 
 
-class JiraTask(BaseModel):
+class PredictRequest(BaseModel):
     summary: str
     description: str = ""
     region: str = "Unknown"
@@ -69,7 +69,7 @@ def health_check():
 
 
 @router.post("/predict")
-def predict(task: JiraTask):
+def predict(task: PredictRequest):
     if not task.summary.strip():
         raise HTTPException(status_code=400, detail="Summary cannot be empty")
     try:
@@ -180,7 +180,7 @@ def trigger_retrain():
 
 
 @router.post("/explain")
-def explain(task: JiraTask):
+def explain(task: PredictRequest):
     if not task.summary.strip():
         raise HTTPException(status_code=400, detail="Summary cannot be empty")
     try:
