@@ -11,6 +11,10 @@ Usage:
 """
 import argparse
 import sqlite3
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import CONFIG
 from feedback import init_db

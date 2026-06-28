@@ -10,7 +10,11 @@ Usage:
     python seed_model_runs.py --force      # re-seed even if rows exist
 """
 import argparse
+import sys
 import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import CONFIG
 from feedback import get_latest_model_run, init_db, insert_model_run
@@ -50,6 +54,7 @@ def seed(db_path: str, force: bool = False) -> None:
             **defaults,
         )
         row = get_latest_model_run(db_path, model_type)
+        assert row is not None
         print(f"[{model_type}] seeded → run_id={row['run_id'][:7]}, r2={row['r2']}, overrun_recall={row['overrun_recall']}")
 
 

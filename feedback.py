@@ -68,7 +68,7 @@ def insert_feedback(
             ),
         )
         conn.commit()
-        return cur.lastrowid
+        return cur.lastrowid or 0
 
 
 def get_feedback_count(db_path: str) -> int:

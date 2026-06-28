@@ -11,6 +11,11 @@ Only the estimate model is retrained (risk model requires story_points).
 import argparse
 import os
 import pickle
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import mlflow
 import numpy as np
@@ -45,7 +50,7 @@ def build_feedback_features(rows: list) -> tuple:
         sparse = vectorizer.transform([full_text])
         lsa = svd.transform(sparse).flatten().astype(np.float32)
 
-        row = {f"emb_{i}": float(lsa[i]) for i in range(len(lsa))}
+        row: dict[str, Any] = {f"emb_{i}": float(lsa[i]) for i in range(len(lsa))}
         row.update({k: float(v) for k, v in structural.items()})
         row["region"] = str(fb["region"] or "Unknown")
         row["subsystem"] = str(fb["subsystem"] or "Unknown")
