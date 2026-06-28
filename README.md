@@ -181,11 +181,11 @@ docker run -p 8000:8000 jira-estimator
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d '{
-    "summary": "Implement OAuth2 login for the mobile client",
-    "description": "Need to add OAuth2 authorization flow. Backend already has the endpoint.",
-    "region": "MOSCOW",
-    "subsystem": "Auth/Mobile",
-    "commitments": "Q3"
+    "summary": "Реализовать выгрузку СЭМД протокола осмотра врача",
+    "description": "Добавить формирование CDA R2 по утверждённому шаблону.",
+    "region": "БАЗОВЫЙ",
+    "subsystem": "СЭМД/Выгрузка",
+    "commitments": "ТУР"
   }'
 ```
 
@@ -209,11 +209,11 @@ Returns SHAP feature contributions for the effort estimate (fold 0, log-space va
 curl -X POST http://localhost:8000/explain \
   -H "Content-Type: application/json" \
   -d '{
-    "summary": "Implement OAuth2 login for the mobile client",
-    "description": "Need to add OAuth2 authorization flow. Backend already has the endpoint.",
-    "region": "MOSCOW",
-    "subsystem": "Auth/Mobile",
-    "commitments": "Q3"
+    "summary": "Реализовать выгрузку СЭМД протокола осмотра врача",
+    "description": "Добавить формирование CDA R2 по утверждённому шаблону.",
+    "region": "БАЗОВЫЙ",
+    "subsystem": "СЭМД/Выгрузка",
+    "commitments": "ТУР"
   }'
 ```
 

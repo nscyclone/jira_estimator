@@ -3,22 +3,26 @@ import time
 import pandas as pd
 import requests
 
-JIRA_URL = os.environ.get("JIRA_URL", "https://your-jira-instance.example.com")
+_required = {"JIRA_URL", "JIRA_PROJECT", "JIRA_COOKIE"}
+_missing = [k for k in _required if not os.environ.get(k)]
+if _missing:
+    raise EnvironmentError(
+        f"Missing required environment variables: {', '.join(_missing)}\n"
+        "Example:\n"
+        "  export JIRA_URL='https://your-jira-instance.example.com'\n"
+        "  export JIRA_PROJECT='YOUR_PROJECT'\n"
+        "  export JIRA_COOKIE='JSESSIONID=...'"
+    )
+
+JIRA_URL = os.environ["JIRA_URL"]
 JQL_QUERY = (
-    'project = YOUR_PROJECT AND statusCategory = Done '
+    f'project = {os.environ["JIRA_PROJECT"]} AND statusCategory = Done '
     'AND "Story Points" is not EMPTY AND timespent is not EMPTY '
     'ORDER BY createdDate DESC'
 )
 
-_cookie = os.environ.get("JIRA_COOKIE")
-if not _cookie:
-    raise EnvironmentError(
-        "Set the JIRA_COOKIE environment variable before running this script. "
-        "Example: export JIRA_COOKIE='JSESSIONID=...'"
-    )
-
 headers = {
-    "Cookie": _cookie,
+    "Cookie": os.environ["JIRA_COOKIE"],
     "Accept": "application/json",
     "Content-Type": "application/json",
 }

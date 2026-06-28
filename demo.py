@@ -13,15 +13,15 @@ tab_predict, tab_metrics, tab_feedback = st.tabs(["Predict", "Metrics", "Feedbac
 with tab_predict:
     st.subheader("Predict effort for a Jira ticket")
 
-    summary = st.text_input("Summary *", "Implement OAuth2 login for mobile client")
-    description = st.text_area("Description", "", height=100)
+    summary = st.text_input("Summary *", "Реализовать выгрузку СЭМД протокола осмотра врача")
+    description = st.text_area("Description", "Добавить формирование CDA R2 по утверждённому шаблону. Шаблон согласован с главным врачом.", height=100)
     col1, col2, col3 = st.columns(3)
     with col1:
-        region = st.text_input("Region", "MOSCOW")
+        region = st.text_input("Region", "БАЗОВЫЙ")
     with col2:
-        subsystem = st.text_input("Subsystem", "Auth/Mobile")
+        subsystem = st.text_input("Subsystem", "СЭМД/Выгрузка")
     with col3:
-        commitments = st.text_input("Commitments", "Q3")
+        commitments = st.text_input("Commitments", "ТУР")
 
     if st.button("Predict", type="primary"):
         payload = {
@@ -115,11 +115,11 @@ with tab_feedback:
         fb_actual = st.number_input("Actual (days)", min_value=0.0, value=2.0, step=0.5)
     col3, col4, col5 = st.columns(3)
     with col3:
-        fb_region = st.text_input("Region", "MOSCOW", key="fb_region")
+        fb_region = st.text_input("Region", "БАЗОВЫЙ", key="fb_region")
     with col4:
         fb_subsystem = st.text_input("Subsystem", "", key="fb_subsystem")
     with col5:
-        fb_commitments = st.text_input("Commitments", "Unknown", key="fb_commitments")
+        fb_commitments = st.text_input("Commitments", "SLA", key="fb_commitments")
 
     if st.button("Submit Feedback", type="primary"):
         if not fb_summary.strip():
