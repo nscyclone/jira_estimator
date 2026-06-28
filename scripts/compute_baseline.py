@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Compute naive baselines to contextualize model R²=0.144.
+"""Compute naive baselines to contextualize model R²=0.184.
 
 Baselines:
   1. Global median — predict the same value for every ticket
@@ -69,8 +69,8 @@ def compute_baselines(train_path: str, test_path: str) -> None:
     # ── Our model ─────────────────────────────────────────────────────────────
     results.append({
         "Baseline": "CatBoost 5-fold ensemble (our model)",
-        "Test R²": 0.1442,
-        "Test MAE (days)": 1.242,
+        "Test R²": 0.1838,
+        "Test MAE (days)": 1.193,
     })
 
     df_results = pd.DataFrame(results)
@@ -78,7 +78,7 @@ def compute_baselines(train_path: str, test_path: str) -> None:
     print(df_results.to_string(index=False))
     print()
     print("Note: R² near 0 = baseline explains no variance beyond the mean.")
-    print("      Our model R²=0.144 vs. best naive baseline shows incremental signal from text+metadata.")
+    print("      Our model R²=0.184 vs. best naive baseline shows incremental signal from text+metadata.")
 
 
 def main() -> None:

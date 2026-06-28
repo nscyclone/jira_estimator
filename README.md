@@ -152,6 +152,19 @@ adjusted_hours = base_hours × (1 + 0.15 × P_medium + 0.50 × P_critical)
 | Dataset mean | 1.97 FTE |
 | MdAPE | 32.6% |
 
+### Baseline Comparison
+
+| Baseline | Test R² | Test MAE |
+|---|---|---|
+| Global median | −0.045 | 1.399 FTE |
+| Median by subsystem | 0.010 | 1.384 FTE |
+| Median by region | −0.032 | 1.394 FTE |
+| **CatBoost 5-fold ensemble** | **0.184** | **1.193 FTE** |
+
+Naive baselines (predict the per-group median) explain zero or negative variance on this dataset. The model's R²=0.184 represents genuine signal from ticket text and metadata — 17× better than the strongest naive baseline.
+
+Reproduced with `python scripts/compute_baseline.py`.
+
 ### Architecture Comparison
 
 | Architecture | Test R² | MAE | RAM | Train time/fold | Monthly infra cost |

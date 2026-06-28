@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 import numpy as np
 import pandas as pd
 from catboost import Pool
@@ -77,6 +80,8 @@ def predict(task: JiraTask):
 
         reg_preds_log = [m.predict(pool) for m in ml_models["est_folds"]]
         base_days = float(np.expm1(np.mean(reg_preds_log)))
+        preds_days = np.expm1(np.array(reg_preds_log).flatten())
+        prediction_std_days = float(np.std(preds_days))
         base_hours = max(0.0, base_days * CONFIG["workday_hours"])
 
         prob_list = [m.predict_proba(pool) for m in ml_models["risk_folds"]]
@@ -89,6 +94,7 @@ def predict(task: JiraTask):
         return {
             "predicted_time_hours": round(base_hours, 1),
             "adjusted_time_with_buffer_hours": round(adjusted_hours, 1),
+            "prediction_std_days": round(prediction_std_days, 2),
             "risk_profile": {
                 "low_risk_prob_pct": round(p_low * 100, 1),
                 "medium_risk_prob_pct": round(p_medium * 100, 1),
@@ -148,6 +154,28 @@ def get_metrics():
         "feedback_mean_delta_pct": fb["feedback_mean_delta_pct"],
         "feedback_accuracy_within_25pct": fb["feedback_accuracy_within_25pct"],
         "estimated_hours_saved_per_sprint": round(count * 15 / 60, 1),
+    }
+
+
+@router.post("/retrain")
+def trigger_retrain():
+    unused = get_unused_feedback_count(CONFIG["feedback_db_path"])
+    threshold = CONFIG["retrain_threshold"]
+    if unused < threshold:
+        return {
+            "status": "skipped",
+            "unused_feedback_rows": unused,
+            "threshold": threshold,
+        }
+    proc = subprocess.Popen(
+        [sys.executable, "scripts/retrain.py"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return {
+        "status": "started",
+        "pid": proc.pid,
+        "unused_feedback_rows": unused,
     }
 
 
