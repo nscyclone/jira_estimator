@@ -21,7 +21,7 @@ with tab_predict:
     with col2:
         subsystem = st.text_input("Subsystem", "СЭМД/Выгрузка")
     with col3:
-        commitments = st.text_input("Commitments", "ТУР")
+        commitments = st.text_input("Commitments", "ТЗР")
 
     if st.button("Predict", type="primary"):
         payload = {

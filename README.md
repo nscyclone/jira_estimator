@@ -30,6 +30,50 @@ The honest answer from our research: **partially** — and the constraints are w
 
 ---
 
+## Dataset
+
+Production Jira backlog from a Russian medical information system (MIS), exported via REST API. All ticket text is in Russian.
+
+| Property | Value |
+|---|---|
+| Raw export | 100 000 tickets |
+| After filtering (story points + time logged required) | 87 443 (12.6% dropped) |
+| Language | Russian |
+| Train / Val / Test split | 69 954 / 8 745 / 8 744 (80/10/10, stratified) |
+
+### Target: `logged_days`
+
+Actual developer time logged, converted from seconds to 8-hour workdays.
+
+| Statistic | Value |
+|---|---|
+| Mean | 1.94 FTE-days |
+| Median | 1.06 FTE-days |
+| Std | 2.74 |
+| p95 / p99 / Max | 6.6 / 12.3 / 106 FTE-days |
+
+The distribution is heavily right-skewed (median ≪ mean). Model trains on `log1p(logged_days)`; predictions are converted back via `expm1`.
+
+### Risk label distribution
+
+Derived from `logged_days / story_points` ratio.
+
+| Class | Condition | Count | Share |
+|---|---|---|---|
+| 0 — Low | ratio ≤ 1.0 | 50 117 | 57.3% |
+| 1 — Medium | 1.0 < ratio ≤ 1.5 | 19 400 | 22.2% |
+| 2 — Critical | ratio > 1.5 | 17 926 | 20.5% |
+
+### Categorical features
+
+| Feature | Unique values | Notes |
+|---|---|---|
+| `region` | 917 | БАЗОВЫЙ covers 77% of tickets (default region in MIS deployments) |
+| `subsystem` | 353 | Reflects MIS module hierarchy: e.g. Отчеты/Отчеты, Поликлиника |
+| `commitments` | 15 | SLA (32%), ТЗР (10%), Рефакторинг (6%) are top-3 |
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -102,9 +146,9 @@ adjusted_hours = base_hours × (1 + 0.15 × P_medium + 0.50 × P_critical)
 
 | Metric | Value |
 |---|---|
-| CV R² (5-Fold, mean ± std) | 0.157 ± 0.008 |
-| Test R² | 0.144 |
-| Test MAE | 1.24 FTE |
+| CV R² (5-Fold, mean ± std) | 0.159 ± 0.016 |
+| Test R² | 0.184 |
+| Test MAE | 1.19 FTE |
 | Dataset mean | 1.97 FTE |
 | MdAPE | 32.6% |
 
@@ -113,9 +157,9 @@ adjusted_hours = base_hours × (1 + 0.15 × P_medium + 0.50 × P_critical)
 | Architecture | Test R² | MAE | RAM | Train time/fold | Monthly infra cost |
 |---|---|---|---|---|---|
 | RuBERT-Heavy (768D + 7) | 0.147 | 1.24 FTE | ~6 GB | ~40 min | ~$150 |
-| **LSA-Light (32D + 7 + 3 cat)** | **0.144** | **1.23 FTE** | **~200 MB** | **~2 min** | **~$5** |
+| **LSA-Light (32D + 7 + 3 cat)** | **0.184** | **1.19 FTE** | **~200 MB** | **~2 min** | **~$5** |
 
-ΔR² = 0.003 in favour of BERT at 30× the cost. LSA-Light is the production choice.
+ΔR² = 0.037 in favour of LSA-Light at 1/30 the cost. LSA-Light is the production choice.
 
 ### Risk Classifier
 
@@ -234,7 +278,7 @@ curl -X POST http://localhost:8000/predict \
     "description": "Добавить формирование CDA R2 по утверждённому шаблону.",
     "region": "БАЗОВЫЙ",
     "subsystem": "СЭМД/Выгрузка",
-    "commitments": "ТУР"
+    "commitments": "ТЗР"
   }'
 ```
 
@@ -262,7 +306,7 @@ curl -X POST http://localhost:8000/explain \
     "description": "Добавить формирование CDA R2 по утверждённому шаблону.",
     "region": "БАЗОВЫЙ",
     "subsystem": "СЭМД/Выгрузка",
-    "commitments": "ТУР"
+    "commitments": "ТЗР"
   }'
 ```
 
@@ -313,8 +357,8 @@ Dynamic metrics from SQLite — updates automatically after each training run.
   "model_revision": "48d6f30",
   "model_published_at": "2026-06-27T20:53:27+00:00",
   "model_trigger": "manual",
-  "model_r2": 0.144,
-  "model_mae": 1.242,
+  "model_r2": 0.184,
+  "model_mae": 1.193,
   "model_overrun_recall": 0.59,
   "feedbacks_collected": 12,
   "feedback_mean_delta_pct": 18.3,
