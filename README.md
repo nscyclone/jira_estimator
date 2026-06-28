@@ -205,6 +205,18 @@ curl -X POST http://localhost:8000/predict \
 
 Returns SHAP feature contributions for the effort estimate (fold 0, log-space values).
 
+```bash
+curl -X POST http://localhost:8000/explain \
+  -H "Content-Type: application/json" \
+  -d '{
+    "summary": "Implement OAuth2 login for the mobile client",
+    "description": "Need to add OAuth2 authorization flow. Backend already has the endpoint.",
+    "region": "MOSCOW",
+    "subsystem": "Auth/Mobile",
+    "commitments": "Q3"
+  }'
+```
+
 ```json
 {
   "base_value": 1.83,
