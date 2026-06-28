@@ -3,29 +3,41 @@ import time
 import pandas as pd
 import requests
 
-_required = {"JIRA_URL", "JIRA_PROJECT", "JIRA_COOKIE"}
-_missing = [k for k in _required if not os.environ.get(k)]
-if _missing:
+JIRA_URL = os.environ.get("JIRA_URL")
+JIRA_PROJECT = os.environ.get("JIRA_PROJECT")
+JIRA_USER = os.environ.get("JIRA_USER")
+JIRA_PASSWORD = os.environ.get("JIRA_PASSWORD")
+JIRA_COOKIE = os.environ.get("JIRA_COOKIE")
+
+if not JIRA_URL or not JIRA_PROJECT:
     raise EnvironmentError(
-        f"Missing required environment variables: {', '.join(_missing)}\n"
-        "Example:\n"
-        "  export JIRA_URL='https://your-jira-instance.example.com'\n"
-        "  export JIRA_PROJECT='YOUR_PROJECT'\n"
-        "  export JIRA_COOKIE='JSESSIONID=...'"
+        "Missing required environment variables: JIRA_URL, JIRA_PROJECT\n"
+        "Authentication (pick one):\n"
+        "  Basic Auth: export JIRA_USER='user' JIRA_PASSWORD='pass'\n"
+        "  Cookie:     export JIRA_COOKIE='JSESSIONID=...'"
     )
 
-JIRA_URL = os.environ["JIRA_URL"]
+if not JIRA_USER and not JIRA_COOKIE:
+    raise EnvironmentError(
+        "Set either JIRA_USER + JIRA_PASSWORD (recommended) or JIRA_COOKIE"
+    )
+
 JQL_QUERY = (
-    f'project = {os.environ["JIRA_PROJECT"]} AND statusCategory = Done '
+    f'project = {JIRA_PROJECT} AND statusCategory = Done '
     'AND "Story Points" is not EMPTY AND timespent is not EMPTY '
     'ORDER BY createdDate DESC'
 )
 
-headers = {
-    "Cookie": os.environ["JIRA_COOKIE"],
-    "Accept": "application/json",
-    "Content-Type": "application/json",
-}
+headers = {"Accept": "application/json", "Content-Type": "application/json"}
+auth = None
+
+if JIRA_USER:
+    auth = (JIRA_USER, JIRA_PASSWORD or "")
+    print(f"Auth: Basic ({JIRA_USER})")
+else:
+    headers["Cookie"] = JIRA_COOKIE
+    headers["X-Atlassian-Token"] = "no-check"
+    print("Auth: Cookie")
 
 
 def fetch_all_jira_issues():
@@ -56,7 +68,7 @@ def fetch_all_jira_issues():
             "fields": fields_to_download,
         }
 
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(url, json=payload, headers=headers, auth=auth)
 
         if response.status_code != 200:
             print(f"API error! Status: {response.status_code}, Body: {response.text}")
