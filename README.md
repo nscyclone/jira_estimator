@@ -32,34 +32,34 @@ The honest answer from our research: **partially** — and the constraints are w
 
 ## Architecture
 
-```
-Jira Backlog
-    │
-    ▼
-scripts/get_jira_issues.py       ← REST API export (JQL, pagination)
-    │
-    ▼
-scripts/prepare_data.py          ← feature engineering + risk label creation
-    │
-    ▼
-scripts/split_data.py            ← stratified 80/10/10 train/val/test split
-    │
-    ▼
-scripts/extract_bm25_lsa.py      ← TF-IDF (sublinear_tf, min_df=2, 25k vocab)
-                                    + TruncatedSVD (32 components) → LSA embeddings
-    │
-    ├── scripts/train_catboost_estimate.py   ← 5-Fold KFold regression ensemble + MLflow
-    └── scripts/train_catboost_risk.py       ← 5-Fold KFold classification ensemble + MLflow
-                │
-                ▼
-         MLflow (file:./mlruns)      ← experiment tracking, SHAP artifacts
-         SQLite (feedback.db)        ← model_runs + feedback tables
-                │
-                ▼
-            app.py (FastAPI)         ← inference + feedback + explainability
-                │
-                ├── scripts/retrain.py   ← threshold-triggered retraining (50 feedbacks)
-                └── demo.py              ← Streamlit UI (Predict / Metrics / Feedback)
+```mermaid
+flowchart TD
+    subgraph train["Training Pipeline  (scripts/)"]
+        A([Jira API]) -->|get_jira_issues| B[(seed.csv)]
+        B -->|prepare_data| C[(dataset.csv)]
+        C -->|split_data| D[(train / val / test)]
+        D -->|extract_bm25_lsa\nTF-IDF · SVD 32D| E[(embeddings)]
+        E -->|train_catboost_estimate| F[(estimate × 5 folds)]
+        E -->|train_catboost_risk| G[(risk × 5 folds)]
+        F & G --> H[(MLflow · mlruns/)]
+    end
+
+    subgraph service["Inference Service"]
+        I([Client]) -->|HTTP| J[FastAPI]
+        J --> K[LSA transform\n+ text features]
+        K --> L[CatBoost Ensemble]
+        L -->|effort · risk · SHAP| J
+        J -->|POST /feedback| M[(SQLite\nfeedback.db)]
+    end
+
+    subgraph loop["Feedback Loop"]
+        M -->|≥ 50 rows| N[retrain.py]
+        N -->|updated models| F
+    end
+
+    F --> L
+    G --> L
+    E -.->|pipeline.pkl| K
 ```
 
 ### Feature Set (42 total)
@@ -162,6 +162,55 @@ docker run -p 8000:8000 jira-estimator
 
 ---
 
+## MLOps
+
+### Experiment Tracking
+
+All training runs are logged to MLflow (`file:./mlruns`, no server required):
+
+```bash
+mlflow ui --backend-store-uri file:./mlruns --port 5000
+```
+
+Each run records hyperparameters, per-fold CV scores, test metrics, and a SHAP summary plot.
+
+### Feedback Loop
+
+```
+User submits feedback via /feedback or Streamlit
+    │
+    ▼
+feedback.db (is_used_for_training = 0)
+    │
+    ▼ (when unused count ≥ 50)
+retrain.py
+    │
+    ├── Augments CV training set with feedback rows
+    ├── Retrains estimate model (5-Fold CatBoostRegressor)
+    ├── Logs new MLflow run (trigger='feedback')
+    └── Updates model_runs → /health and /metrics reflect new revision
+```
+
+```bash
+# Check if retraining threshold is reached (dry run)
+python scripts/retrain.py --dry-run
+
+# Trigger retraining
+python scripts/retrain.py
+```
+
+### Seeding Baseline Metrics
+
+For local development or demo setup without a full training run:
+
+```bash
+python scripts/seed_model_runs.py          # idempotent, skips if already seeded
+python scripts/seed_model_runs.py --force  # re-seed even if rows exist
+python scripts/seed_model_runs.py --db path/to/custom.db
+```
+
+---
+
 ## API Reference
 
 ### `GET /health`
@@ -236,11 +285,11 @@ curl -X POST http://localhost:8000/explain \
 curl -X POST http://localhost:8000/feedback \
   -H "Content-Type: application/json" \
   -d '{
-    "summary": "Implement OAuth2 login for the mobile client",
-    "description": "Backend endpoint ready, need mobile client",
-    "region": "MOSCOW",
-    "subsystem": "Auth/Mobile",
-    "commitments": "Q3",
+    "summary": "Реализовать выгрузку СЭМД протокола осмотра врача",
+    "description": "Добавить формирование CDA R2 по утверждённому шаблону.",
+    "region": "БАЗОВЫЙ",
+    "subsystem": "СЭМД/Выгрузка",
+    "commitments": "SLA",
     "predicted_days": 1.5,
     "actual_days": 2.0
   }'
@@ -272,55 +321,6 @@ Dynamic metrics from SQLite — updates automatically after each training run.
   "feedback_accuracy_within_25pct": 0.667,
   "estimated_hours_saved_per_sprint": 3.0
 }
-```
-
----
-
-## MLOps
-
-### Experiment Tracking
-
-All training runs are logged to MLflow (`file:./mlruns`, no server required):
-
-```bash
-mlflow ui --backend-store-uri file:./mlruns --port 5000
-```
-
-Each run records hyperparameters, per-fold CV scores, test metrics, and a SHAP summary plot.
-
-### Feedback Loop
-
-```
-User submits feedback via /feedback or Streamlit
-    │
-    ▼
-feedback.db (is_used_for_training = 0)
-    │
-    ▼ (when unused count ≥ 50)
-retrain.py
-    │
-    ├── Augments CV training set with feedback rows
-    ├── Retrains estimate model (5-Fold CatBoostRegressor)
-    ├── Logs new MLflow run (trigger='feedback')
-    └── Updates model_runs → /health and /metrics reflect new revision
-```
-
-```bash
-# Check if retraining threshold is reached (dry run)
-python scripts/retrain.py --dry-run
-
-# Trigger retraining
-python scripts/retrain.py
-```
-
-### Seeding Baseline Metrics
-
-For local development or demo setup without a full training run:
-
-```bash
-python seed_model_runs.py          # idempotent, skips if already seeded
-python seed_model_runs.py --force  # re-seed even if rows exist
-python seed_model_runs.py --db path/to/custom.db
 ```
 
 ---
