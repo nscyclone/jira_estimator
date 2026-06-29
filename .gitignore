@@ -31,3 +31,9 @@ data/*.parquet
 
 # uv lock (optional — include if you want reproducible installs across machines)
 # uv.lock
+
+# Local presentation build artifacts
+template.pptx
+pitch.pptx
+build_pitch.py
+*.xlsx
